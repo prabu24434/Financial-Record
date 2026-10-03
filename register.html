@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Daftar - Financial Record</title>
+  <link rel="stylesheet" href="./css/auth.css">
+</head>
+<body>
+
+  <div class="auth-card">
+    <div class="auth-header">
+      <h1>Buat Akun</h1>
+      <p>Kelola keuangan pribadi dengan mudah</p>
+    </div>
+
+    <div id="error-msg" class="error-message"></div>
+
+    <form id="register-form">
+      <div class="form-group">
+        <label for="name">Nama Lengkap</label>
+        <input type="text" id="name" required placeholder="Masukkan nama kamu">
+      </div>
+
+      <div class="form-group">
+        <label for="email">Email</label>
+        <input type="email" id="email" required placeholder="nama@email.com">
+      </div>
+
+      <div class="form-group">
+        <label for="password">Password (Min. 8 Karakter)</label>
+        <input type="password" id="password" required placeholder="••••••••">
+      </div>
+
+      <div class="form-group">
+        <label for="confirm-password">Konfirmasi Password</label>
+        <input type="password" id="confirm-password" required placeholder="••••••••">
+      </div>
+
+      <button type="submit" id="btn-submit" class="btn-primary">Daftar</button>
+    </form>
+
+    <div class="auth-links">
+      <p>Sudah punya akun? <a href="./login.html">Login di sini</a></p>
+    </div>
+  </div>
+
+  <script type="module">
+    import { registerUser } from "./js/auth.js";
+
+    const form = document.getElementById("register-form");
+    const errorMsg = document.getElementById("error-msg");
+    const btnSubmit = document.getElementById("btn-submit");
+
+    form.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      errorMsg.style.display = "none";
+
+      const name = document.getElementById("name").value.trim();
+      const email = document.getElementById("email").value.trim();
+      const password = document.getElementById("password").value;
+      const confirmPassword = document.getElementById("confirm-password").value;
+
+      if (!name) {
+        showError("Nama tidak boleh kosong.");
+        return;
+      }
+
+      if (password.length < 8) {
+        showError("Password minimal harus 8 karakter.");
+        return;
+      }
+
+      if (password !== confirmPassword) {
+        showError("Password dan konfirmasi password tidak cocok.");
+        return;
+      }
+
+      btnSubmit.disabled = true;
+      btnSubmit.textContent = "Memproses...";
+
+      try {
+        await registerUser(name, email, password);
+        window.location.href = "./accounts.html";
+      } catch (error) {
+        btnSubmit.disabled = false;
+        btnSubmit.textContent = "Daftar";
+        
+        if (error.code === "auth/email-already-in-use") {
+          showError("Email ini sudah terdaftar.");
+        } else if (error.code === "auth/invalid-email") {
+          showError("Format email tidak valid.");
+        } else {
+          showError("Terjadi kesalahan: " + error.message);
+        }
+      }
+    });
+
+    function showError(msg) {
+      errorMsg.textContent = msg;
+      errorMsg.style.display = "block";
+    }
+  </script>
+</body>
+</html>

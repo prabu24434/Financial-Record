@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Kalender - Financial Record</title>
+  <link rel="stylesheet" href="./css/dashboard.css">
+  <style>
+    .calendar-grid {
+      display: grid;
+      grid-template-columns: repeat(7, 1fr);
+      gap: 4px;
+      margin-top: 12px;
+      text-align: center;
+    }
+    .calendar-day-header {
+      font-size: 11px;
+      font-weight: bold;
+      color: var(--text-muted);
+      padding: 4px 0;
+    }
+    .calendar-cell {
+      background: var(--card-bg);
+      border-radius: 6px;
+      padding: 6px 2px;
+      min-height: 52px;
+      font-size: 11px;
+      cursor: pointer;
+      border: 1px solid var(--border-color);
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+    }
+    .calendar-cell.empty {
+      background: transparent;
+      border: none;
+      cursor: default;
+    }
+    .calendar-cell.active {
+      border-color: #0066cc;
+      background: var(--primary-light);
+    }
+    .cell-date {
+      font-weight: bold;
+    }
+    .cell-income { color: #2e7d32; font-size: 9px; }
+    .cell-expense { color: #c62828; font-size: 9px; }
+  </style>
+</head>
+<body>
+
+  <div class="navbar">
+    <h1>Kalender Transaksi</h1>
+    <button id="btn-logout" class="btn-logout">Logout</button>
+  </div>
+
+  <div class="container">
+    <div class="card">
+      <div style="display: flex; justify-content: space-between; align-items: center;">
+        <button id="btn-prev-month" class="btn-logout" style="color: var(--text-color); border-color: var(--border-color);">&lt; Bln Lalu</button>
+        <h3 id="current-month-label" style="border: none; margin: 0; padding: 0;">Oktober 2026</h3>
+        <button id="btn-next-month" class="btn-logout" style="color: var(--text-color); border-color: var(--border-color);">Bln Depan &gt;</button>
+      </div>
+
+      <div class="calendar-grid">
+        <div class="calendar-day-header">Ming</div>
+        <div class="calendar-day-header">Sen</div>
+        <div class="calendar-day-header">Sel</div>
+        <div class="calendar-day-header">Rab</div>
+        <div class="calendar-day-header">Kam</div>
+        <div class="calendar-day-header">Jum</div>
+        <div class="calendar-day-header">Sab</div>
+      </div>
+
+      <div id="calendar-cells" class="calendar-grid"></div>
+    </div>
+
+    <div class="card">
+      <h3 id="selected-date-title">Detail Transaksi Hari Ini</h3>
+      <div id="selected-date-tx-list">
+        <p style="text-align: center; color: var(--text-muted);">Klik pada tanggal di atas untuk melihat detail.</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="bottom-nav">
+    <a href="./dashboard.html" class="nav-item">Dashboard</a>
+    <a href="./transactions.html" class="nav-item">Transaksi</a>
+    <a href="./accounts.html" class="nav-item">Rekening</a>
+    <a href="./budgets.html" class="nav-item">Budget</a>
+    <a href="./goals.html" class="nav-item">Goals</a>
+    <a href="./calendar.html" class="nav-item active">Kalender</a>
+    <a href="./reports.html" class="nav-item">Laporan</a>
+    <a href="./debts.html" class="nav-item">Utang</a>
+    <a href="./subscriptions.html" class="nav-item">Subskripsi</a>
+    <a href="./settings.html" class="nav-item">Pengaturan</a>
+  </div>
+
+  <script type="module">
+    import { requireAuth } from "./js/session.js";
+    import { logoutUser } from "./js/auth.js";
+    import { getTransactions } from "./js/storage.js";
+    import { formatRupiah, formatDateIndo } from "./js/utils.js";
+    import { initTheme } from "./js/theme.js";
+
+    initTheme();
+
+    let currentUser = null;
+    let allTransactions = [];
+    let currentDate = new Date();
+
+    requireAuth(async (user) => {
+      currentUser = user;
+      allTransactions = await getTransactions(currentUser.uid);
+      renderCalendar();
+    });
+
+    document.getElementById("btn-logout").addEventListener("click", () => logoutUser());
+
+    document.getElementById("btn-prev-month").addEventListener("click", () => {
+      currentDate.setMonth(currentDate.getMonth() - 1);
+      renderCalendar();
+    });
+
+    document.getElementById("btn-next-month").addEventListener("click", () => {
+      currentDate.setMonth(currentDate.getMonth() + 1);
+      renderCalendar();
+    });
+
+    function renderCalendar() {
+      const year = currentDate.getFullYear();
+      const month = currentDate.getMonth();
+
+      const monthNames = ["Januari", "Februari", "Maret", "April", "Mei", "Juni", "Juli", "Agustus", "September", "Oktober", "November", "Desember"];
+      document.getElementById("current-month-label").textContent = `${monthNames[month]} ${year}`;
+
+      const firstDay = new Date(year, month, 1).getDay();
+      const totalDays = new Date(year, month + 1, 0).getDate();
+
+      const cellsContainer = document.getElementById("calendar-cells");
+      cellsContainer.innerHTML = "";
+
+      for (let i = 0; i < firstDay; i++) {
+        cellsContainer.innerHTML += `<div class="calendar-cell empty"></div>`;
+      }
+
+      const dailySummary = {};
+      allTransactions.forEach(tx => {
+        if (!tx.date) return;
+        const [txY, txM, txD] = tx.date.split("-").map(Number);
+        if (txY === year && txM === (month + 1)) {
+          if (!dailySummary[txD]) dailySummary[txD] = { income: 0, expense: 0, list: [] };
+          if (tx.type === "income") dailySummary[txD].income += Number(tx.amount);
+          if (tx.type === "expense") dailySummary[txD].expense += Number(tx.amount);
+          dailySummary[txD].list.push(tx);
+        }
+      });
+
+      for (let day = 1; day <= totalDays; day++) {
+        const data = dailySummary[day];
+        let incHtml = data && data.income > 0 ? `<div class="cell-income">+${(data.income/1000).toFixed(0)}k</div>` : '';
+        let expHtml = data && data.expense > 0 ? `<div class="cell-expense">-${(data.expense/1000).toFixed(0)}k</div>` : '';
+
+        const formattedDate = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+
+        const cellEl = document.createElement("div");
+        cellEl.className = "calendar-cell";
+        cellEl.innerHTML = `<div class="cell-date">${day}</div><div>${incHtml}${expHtml}</div>`;
+
+        cellEl.addEventListener("click", () => {
+          document.querySelectorAll(".calendar-cell").forEach(c => c.classList.remove("active"));
+          cellEl.classList.add("active");
+          showDateDetails(formattedDate, data ? data.list : []);
+        });
+
+        cellsContainer.appendChild(cellEl);
+      }
+    }
+
+    function showDateDetails(dateStr, txList) {
+      document.getElementById("selected-date-title").textContent = `Transaksi: ${formatDateIndo(dateStr)}`;
+      const container = document.getElementById("selected-date-tx-list");
+
+      if (!txList || txList.length === 0) {
+        container.innerHTML = `<p style="text-align: center; color: var(--text-muted);">Tidak ada transaksi pada tanggal ini.</p>`;
+        return;
+      }
+
+      container.innerHTML = txList.map(tx => {
+        let badgeClass = "amount-expense";
+        let prefix = "- ";
+        let detailText = `${tx.categoryName || ''} • ${tx.accountName || ''}`;
+
+        if (tx.type === "income") {
+          badgeClass = "amount-income";
+          prefix = "+ ";
+        } else if (tx.type === "transfer") {
+          badgeClass = "amount-transfer";
+          prefix = "";
+          detailText = `Transfer: ${tx.sourceAccountName || '-'} → ${tx.destinationAccountName || '-'}`;
+        }
+
+        const timeText = tx.time ? ` [${tx.time}]` : '';
+
+        return `
+          <div class="list-item">
+            <div class="item-info">
+              <div class="title">${tx.notes || (tx.type === 'transfer' ? 'Transfer' : tx.categoryName)}</div>
+              <div class="subtitle">${formatDateIndo(tx.date)}${timeText} | ${detailText}</div>
+            </div>
+            <div class="item-amount ${badgeClass}">
+              ${prefix}${formatRupiah(tx.amount)}
+            </div>
+          </div>
+        `;
+      }).join("");
+    }
+  </script>
+</body>
+</html>

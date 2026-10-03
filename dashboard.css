@@ -1,0 +1,202 @@
+:root {
+  --bg-color: #f4f6f8;
+  --card-bg: #ffffff;
+  --text-color: #333333;
+  --text-muted: #666666;
+  --border-color: #eee;
+  --nav-bg: #ffffff;
+  --nav-border: #dddddd;
+  --primary-color: #0066cc;
+  --primary-light: #e6f0fa;
+}
+
+[data-theme="dark"] {
+  --bg-color: #121212;
+  --card-bg: #1e1e1e;
+  --text-color: #e0e0e0;
+  --text-muted: #aaaaaa;
+  --border-color: #333333;
+  --nav-bg: #1e1e1e;
+  --nav-border: #2a2a2a;
+  --primary-color: #3700b3;
+  --primary-light: #2c2c2c;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+}
+
+body {
+  background-color: var(--bg-color) !important;
+  color: var(--text-color) !important;
+  padding-bottom: 90px !important;
+  transition: background-color 0.3s, color 0.3s;
+}
+
+.navbar {
+  background-color: #0066cc;
+  color: white;
+  padding: 16px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.navbar h1 {
+  font-size: 18px;
+}
+
+.navbar .btn-logout {
+  background: transparent;
+  border: 1px solid white;
+  color: white;
+  padding: 6px 12px;
+  border-radius: 4px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.container {
+  padding: 16px;
+  max-width: 800px;
+  margin: 0 auto;
+}
+
+.card {
+  background: var(--card-bg) !important;
+  padding: 16px;
+  border-radius: 10px;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.05);
+  margin-bottom: 16px;
+  border: 1px solid var(--border-color) !important;
+}
+
+.card h3 {
+  font-size: 16px;
+  margin-bottom: 12px;
+  color: var(--text-color) !important;
+  border-bottom: 1px solid var(--border-color) !important;
+  padding-bottom: 8px;
+}
+
+.form-group {
+  margin-bottom: 12px;
+}
+
+.form-group label {
+  display: block;
+  font-size: 13px;
+  font-weight: 600;
+  margin-bottom: 4px;
+  color: var(--text-muted) !important;
+}
+
+.form-group input, .form-group select {
+  width: 100%;
+  padding: 10px;
+  font-size: 14px;
+  border: 1px solid var(--border-color) !important;
+  border-radius: 6px;
+  background-color: var(--card-bg) !important;
+  color: var(--text-color) !important;
+}
+
+.btn-submit {
+  width: 100%;
+  padding: 12px;
+  background-color: #0066cc;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: bold;
+  cursor: pointer;
+  margin-top: 8px;
+}
+
+.list-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--border-color) !important;
+}
+
+.list-item:last-child {
+  border-bottom: none !important;
+}
+
+.item-info .title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-color) !important;
+}
+
+.item-info .subtitle {
+  font-size: 12px;
+  color: var(--text-muted) !important;
+  margin-top: 2px;
+}
+
+.item-amount {
+  font-size: 14px;
+  font-weight: bold;
+}
+
+.amount-income { color: #2e7d32 !important; }
+.amount-expense { color: #c62828 !important; }
+.amount-transfer { color: #0277bd !important; }
+
+/* BOTTOM NAVIGATION TIPE BUTTON PERSEGI PANJANG DENGAN SHADOW */
+.bottom-nav {
+  position: fixed !important;
+  bottom: 0 !important;
+  left: 0 !important;
+  right: 0 !important;
+  background: var(--nav-bg) !important;
+  display: flex !important;
+  overflow-x: auto !important;
+  white-space: nowrap !important;
+  padding: 10px 10px !important;
+  gap: 8px !important;
+  border-top: 1px solid var(--nav-border) !important;
+  box-shadow: 0 -4px 12px rgba(0,0,0,0.12) !important;
+  z-index: 99999 !important;
+  -webkit-overflow-scrolling: touch;
+}
+
+.bottom-nav::-webkit-scrollbar {
+  display: none !important;
+}
+
+.nav-item {
+  display: inline-block !important;
+  text-decoration: none !important;
+  color: var(--text-color) !important;
+  font-size: 12px !important;
+  font-weight: 600 !important;
+  text-align: center !important;
+  padding: 8px 16px !important;
+  flex: 0 0 auto !important;
+  border-radius: 20px !important;
+  background-color: #e2e8f0 !important;
+  border: 1px solid #cbd5e1 !important;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.05) !important;
+  transition: all 0.2s ease-in-out !important;
+}
+
+[data-theme="dark"] .nav-item {
+  background-color: #2a2a2a !important;
+  border: 1px solid #444444 !important;
+  color: #e0e0e0 !important;
+}
+
+.nav-item.active {
+  color: #ffffff !important;
+  background-color: #0066cc !important;
+  border-color: #0052a5 !important;
+  box-shadow: 0 3px 8px rgba(0, 102, 204, 0.4) !important;
+}

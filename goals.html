@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Goals - Financial Record</title>
+  <link rel="stylesheet" href="./css/dashboard.css">
+  <style>
+    .progress-container {
+      background: #e0e0e0;
+      border-radius: 6px;
+      height: 12px;
+      width: 100%;
+      overflow: hidden;
+      margin: 8px 0;
+    }
+    .progress-bar {
+      height: 100%;
+      background: #27ae60;
+      width: 0%;
+      transition: width 0.3s;
+    }
+    .goal-info {
+      display: flex;
+      justify-content: space-between;
+      font-size: 12px;
+      color: #666;
+    }
+    .btn-add-funds {
+      background: #27ae60;
+      color: white;
+      border: none;
+      padding: 4px 8px;
+      border-radius: 4px;
+      font-size: 11px;
+      cursor: pointer;
+    }
+    .btn-sub-funds {
+      background: #e67e22;
+      color: white;
+      border: none;
+      padding: 4px 8px;
+      border-radius: 4px;
+      font-size: 11px;
+      cursor: pointer;
+    }
+    .btn-delete-sm {
+      background: #e74c3c;
+      color: white;
+      border: none;
+      padding: 4px 8px;
+      border-radius: 4px;
+      font-size: 11px;
+      cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="navbar">
+    <h1>Financial Goals</h1>
+    <button id="btn-logout" class="btn-logout">Logout</button>
+  </div>
+
+  <div class="container">
+    <div class="card">
+      <h3>Buat Target Keuangan Baru</h3>
+      <form id="goal-form">
+        <div class="form-group">
+          <label for="goal-name">Nama Target</label>
+          <input type="text" id="goal-name" placeholder="Misal: Beli Laptop Baru" required>
+        </div>
+
+        <div class="form-group">
+          <label for="goal-target">Target Nominal (Rp)</label>
+          <input type="number" id="goal-target" placeholder="0" required>
+        </div>
+
+        <div class="form-group">
+          <label for="goal-start">Waktu Mulai Menabung</label>
+          <input type="date" id="goal-start" required>
+        </div>
+
+        <div class="form-group">
+          <label for="goal-deadline">Target Waktu Selesai (Deadline)</label>
+          <input type="date" id="goal-deadline" required>
+        </div>
+
+        <button type="submit" id="btn-save" class="btn-submit">Simpan Target</button>
+      </form>
+    </div>
+
+    <div class="card">
+      <h3>Daftar Target Keuangan</h3>
+      <div id="goals-list">
+        <p style="text-align: center; color: #888;">Memuat data...</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Bottom Nav Terpadu -->
+  <div class="bottom-nav">
+    <a href="./dashboard.html" class="nav-item">Dashboard</a>
+    <a href="./transactions.html" class="nav-item">Transaksi</a>
+    <a href="./accounts.html" class="nav-item">Rekening</a>
+    <a href="./budgets.html" class="nav-item">Budget</a>
+    <a href="./goals.html" class="nav-item active">Goals</a>
+    <a href="./calendar.html" class="nav-item">Kalender</a>
+    <a href="./reports.html" class="nav-item">Laporan</a>
+    <a href="./debts.html" class="nav-item">Utang</a>
+    <a href="./subscriptions.html" class="nav-item">Subskripsi</a>
+    <a href="./settings.html" class="nav-item">Pengaturan</a>
+  </div>
+
+  <script type="module">
+    import { initTheme } from "./js/theme.js";
+    import { requireAuth } from "./js/session.js";
+    import { logoutUser } from "./js/auth.js";
+    import { getGoals, addGoal, updateGoalWithTransaction, deleteGoal, getAccounts } from "./js/storage.js";
+    import { formatRupiah, formatDateIndo } from "./js/utils.js";
+    
+    initTheme();
+    let currentUser = null;
+    let goalsList = [];
+    let userAccounts = [];
+
+    document.getElementById("goal-start").value = new Date().toISOString().split("T")[0];
+
+    requireAuth(async (user) => {
+      currentUser = user;
+      userAccounts = await getAccounts(currentUser.uid);
+      await loadGoals();
+    });
+
+    document.getElementById("btn-logout").addEventListener("click", () => logoutUser());
+
+    document.getElementById("goal-form").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const btnSave = document.getElementById("btn-save");
+      btnSave.disabled = true;
+
+      const name = document.getElementById("goal-name").value.trim();
+      const targetAmount = document.getElementById("goal-target").value;
+      const startDate = document.getElementById("goal-start").value;
+      const deadline = document.getElementById("goal-deadline").value;
+
+      try {
+        await addGoal(currentUser.uid, { name, targetAmount, currentAmount: 0, startDate, deadline });
+        document.getElementById("goal-form").reset();
+        await loadGoals();
+      } catch (err) {
+        alert("Gagal menyimpan target: " + err.message);
+      } finally {
+        btnSave.disabled = false;
+      }
+    });
+
+    async function loadGoals() {
+      const container = document.getElementById("goals-list");
+      try {
+        goalsList = await getGoals(currentUser.uid);
+        if (goalsList.length === 0) {
+          container.innerHTML = `<p style="text-align: center; color: #888;">Belum ada target keuangan.</p>`;
+          return;
+        }
+
+        container.innerHTML = goalsList.map(g => {
+          const percent = Math.min(Math.round((g.currentAmount / g.targetAmount) * 100), 100);
+          return `
+            <div class="list-item" style="flex-direction: column; align-items: stretch;">
+              <div style="display: flex; justify-content: space-between; font-weight: bold;">
+                <span>${g.name}</span>
+                <span>${percent}%</span>
+              </div>
+              <div class="progress-container">
+                <div class="progress-bar" style="width: ${percent}%;"></div>
+              </div>
+              <div class="goal-info">
+                <span>Terkumpul: ${formatRupiah(g.currentAmount)}</span>
+                <span>Target: ${formatRupiah(g.targetAmount)}</span>
+              </div>
+              <div class="goal-info" style="margin-top: 2px;">
+                <span>Mulai: ${formatDateIndo(g.startDate)}</span>
+                <span>Target Selesai: ${formatDateIndo(g.deadline)}</span>
+              </div>
+              <div style="display: flex; gap: 6px; margin-top: 8px;">
+                <button class="btn-add-funds" data-id="${g.id}">+ Tabung Funds</button>
+                <button class="btn-sub-funds" data-id="${g.id}">- Tarik Funds</button>
+                <button class="btn-delete-sm" data-id="${g.id}">Hapus</button>
+              </div>
+            </div>
+          `;
+        }).join("");
+
+        // Tabung Funds (Otomatis potong rekening & catat transaksi)
+        document.querySelectorAll(".btn-add-funds").forEach(btn => {
+          btn.addEventListener("click", async (e) => {
+            if (userAccounts.length === 0) {
+              alert("Buat rekening terlebih dahulu!");
+              return;
+            }
+            const goal = goalsList.find(g => g.id === e.target.getAttribute("data-id"));
+            const accIndex = prompt("Pilih Nomor Rekening Sumber:\n" + userAccounts.map((a, i) => `${i+1}. ${a.name} (Saldo: ${formatRupiah(a.balance)})`).join("\n"));
+            const selectedAcc = userAccounts[Number(accIndex) - 1];
+
+            if (selectedAcc) {
+              const amount = Number(prompt("Masukkan nominal dana yang ditabung (Rp):"));
+              if (amount && amount > 0) {
+                await updateGoalWithTransaction(currentUser.uid, goal, amount, selectedAcc.id, selectedAcc.name, true);
+                userAccounts = await getAccounts(currentUser.uid);
+                await loadGoals();
+              }
+            }
+          });
+        });
+
+        // Tarik Funds (Otomatis masuk rekening & catat transaksi)
+        document.querySelectorAll(".btn-sub-funds").forEach(btn => {
+          btn.addEventListener("click", async (e) => {
+            if (userAccounts.length === 0) return;
+            const goal = goalsList.find(g => g.id === e.target.getAttribute("data-id"));
+            const accIndex = prompt("Pilih Nomor Rekening Tujuan Penarikan:\n" + userAccounts.map((a, i) => `${i+1}. ${a.name}`).join("\n"));
+            const selectedAcc = userAccounts[Number(accIndex) - 1];
+
+            if (selectedAcc) {
+              const amount = Number(prompt("Masukkan nominal dana yang ditarik (Rp):"));
+              if (amount && amount > 0) {
+                await updateGoalWithTransaction(currentUser.uid, goal, amount, selectedAcc.id, selectedAcc.name, false);
+                userAccounts = await getAccounts(currentUser.uid);
+                await loadGoals();
+              }
+            }
+          });
+        });
+
+        document.querySelectorAll(".btn-delete-sm").forEach(btn => {
+          btn.addEventListener("click", async (e) => {
+            if (confirm("Hapus target keuangan ini?")) {
+              await deleteGoal(currentUser.uid, e.target.getAttribute("data-id"));
+              await loadGoals();
+            }
+          });
+        });
+
+      } catch (err) {
+        container.innerHTML = `<p style="color: red;">Gagal memuat target.</p>`;
+      }
+    }
+  </script>
+</body>
+</html>

@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Utang & Piutang - Financial Record</title>
+  <link rel="stylesheet" href="./css/dashboard.css">
+  <style>
+    .btn-status {
+      padding: 4px 8px;
+      border-radius: 4px;
+      font-size: 11px;
+      border: none;
+      cursor: pointer;
+    }
+    .status-lunas { background: #27ae60; color: white; }
+    .status-sebagian { background: #e67e22; color: white; }
+    .status-belum { background: #e74c3c; color: white; }
+    .btn-delete-sm {
+      background: #7f8c8d;
+      color: white;
+      border: none;
+      padding: 4px 8px;
+      border-radius: 4px;
+      font-size: 11px;
+      cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="navbar">
+    <h1>Utang & Piutang</h1>
+    <button id="btn-logout" class="btn-logout">Logout</button>
+  </div>
+
+  <div class="container">
+    <div class="card">
+      <h3>Catat Utang / Piutang</h3>
+      <form id="debt-form">
+        <div class="form-group">
+          <label for="debt-type">Jenis Catatan</label>
+          <select id="debt-type" required>
+            <option value="utang">Utang Saya (Pinjam ke Orang Lain)</option>
+            <option value="piutang">Piutang (Orang Lain Pinjam ke Saya)</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label for="debt-name">Nama Pihak (Orang/Lembaga)</label>
+          <input type="text" id="debt-name" placeholder="Misal: Budi, Bank BCA" required>
+        </div>
+
+        <div class="form-group">
+          <label for="debt-account">Rekening Terkait Transaksi</label>
+          <select id="debt-account" required></select>
+        </div>
+
+        <div class="form-group">
+          <label for="debt-amount">Nominal (Rp)</label>
+          <input type="number" id="debt-amount" placeholder="0" required>
+        </div>
+
+        <div class="form-group">
+          <label for="debt-due">Jatuh Tempo</label>
+          <input type="date" id="debt-due">
+        </div>
+
+        <button type="submit" id="btn-save" class="btn-submit">Simpan & Catat Transaksi</button>
+      </form>
+    </div>
+
+    <div class="card">
+      <h3>Daftar Utang & Piutang</h3>
+      <div id="debts-list">
+        <p style="text-align: center; color: #888;">Memuat data...</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="bottom-nav">
+    <a href="./dashboard.html" class="nav-item">Dashboard</a>
+    <a href="./transactions.html" class="nav-item">Transaksi</a>
+    <a href="./accounts.html" class="nav-item">Rekening</a>
+    <a href="./budgets.html" class="nav-item">Budget</a>
+    <a href="./goals.html" class="nav-item">Goals</a>
+    <a href="./calendar.html" class="nav-item">Kalender</a>
+    <a href="./reports.html" class="nav-item">Laporan</a>
+    <a href="./debts.html" class="nav-item active">Utang</a>
+    <a href="./subscriptions.html" class="nav-item">Subskripsi</a>
+    <a href="./settings.html" class="nav-item">Pengaturan</a>
+  </div>
+
+  <script type="module">
+    import { initTheme } from "./js/theme.js";
+    import { requireAuth } from "./js/session.js";
+    import { logoutUser } from "./js/auth.js";
+    import { getDebts, addDebtWithTransaction, payDebtPartialWithTransaction, deleteDebt, getAccounts } from "./js/storage.js";
+    import { formatRupiah, formatDateIndo } from "./js/utils.js";
+    
+    initTheme();
+    let currentUser = null;
+    let userAccounts = [];
+    let debtsList = [];
+
+    requireAuth(async (user) => {
+      currentUser = user;
+      userAccounts = await getAccounts(currentUser.uid);
+      renderAccountOptions();
+      await loadDebts();
+    });
+
+    document.getElementById("btn-logout").addEventListener("click", () => logoutUser());
+
+    function renderAccountOptions() {
+      const select = document.getElementById("debt-account");
+      if (userAccounts.length === 0) {
+        select.innerHTML = `<option value="">-- Buat Rekening Dulu --</option>`;
+        return;
+      }
+      select.innerHTML = userAccounts.map(a => `<option value="${a.id}">${a.name} (${formatRupiah(a.balance)})</option>`).join("");
+    }
+
+    document.getElementById("debt-form").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      if (userAccounts.length === 0) return alert("Buat rekening terlebih dahulu!");
+
+      const btnSave = document.getElementById("btn-save");
+      btnSave.disabled = true;
+
+      const type = document.getElementById("debt-type").value;
+      const name = document.getElementById("debt-name").value.trim();
+      const amount = document.getElementById("debt-amount").value;
+      const dueDate = document.getElementById("debt-due").value;
+      const accountId = document.getElementById("debt-account").value;
+      const selectedAcc = userAccounts.find(a => a.id === accountId);
+
+      try {
+        await addDebtWithTransaction(currentUser.uid, { type, name, amount, dueDate }, accountId, selectedAcc ? selectedAcc.name : "");
+        document.getElementById("debt-form").reset();
+        userAccounts = await getAccounts(currentUser.uid);
+        renderAccountOptions();
+        await loadDebts();
+      } catch (err) {
+        alert("Gagal menyimpan: " + err.message);
+      } finally {
+        btnSave.disabled = false;
+      }
+    });
+
+    async function loadDebts() {
+      const container = document.getElementById("debts-list");
+      try {
+        debtsList = await getDebts(currentUser.uid);
+        if (debtsList.length === 0) {
+          container.innerHTML = `<p style="text-align: center; color: #888;">Belum ada catatan utang/piutang.</p>`;
+          return;
+        }
+
+        container.innerHTML = debtsList.map(d => {
+          const isUtang = d.type === "utang";
+          const remaining = d.remainingAmount ?? d.amount;
+          const isLunas = d.status === "Lunas";
+
+          let statusClass = "status-belum";
+          if (d.status === "Lunas") statusClass = "status-lunas";
+          if (d.status === "Sebagian") statusClass = "status-sebagian";
+
+          return `
+            <div class="list-item">
+              <div class="item-info">
+                <div class="title">${d.name} (${isUtang ? 'Utang Saya' : 'Piutang'})</div>
+                <div class="subtitle">Sisa: <strong>${formatRupiah(remaining)}</strong> / Total: ${formatRupiah(d.amount)}</div>
+                <div class="subtitle">${d.dueDate ? 'Jatuh Tempo: ' + formatDateIndo(d.dueDate) : 'Tanpa jatuh tempo'}</div>
+                <div style="margin-top: 6px; display: flex; gap: 6px;">
+                  ${!isLunas ? `<button class="btn-status status-sebagian" data-pay-id="${d.id}">Bayar/Cicil</button>` : `<span class="btn-status status-lunas">Lunas</span>`}
+                  <button class="btn-delete-sm" data-id="${d.id}">Hapus</button>
+                </div>
+              </div>
+              <div class="item-amount ${isUtang ? 'amount-expense' : 'amount-income'}">
+                <span class="btn-status ${statusClass}">${d.status}</span>
+              </div>
+            </div>
+          `;
+        }).join("");
+
+        // Cicil / Bayar Utang/Piutang
+        document.querySelectorAll("[data-pay-id]").forEach(btn => {
+          btn.addEventListener("click", async (e) => {
+            const debt = debtsList.find(d => d.id === e.target.getAttribute("data-pay-id"));
+            if (!debt) return;
+
+            const remaining = debt.remainingAmount ?? debt.amount;
+            const payAmountStr = prompt(`Sisa utang/piutang saat ini: ${formatRupiah(remaining)}\n\nMasukkan nominal pembayaran/cicilan (Rp):`, remaining);
+            const payAmount = Number(payAmountStr);
+
+            if (!payAmount || payAmount <= 0) return;
+            if (payAmount > remaining) return alert("Nominal pembayaran melebihi sisa utang!");
+
+            const accIndex = prompt("Pilih Nomor Rekening Pembayaran:\n" + userAccounts.map((a, i) => `${i+1}. ${a.name} (${formatRupiah(a.balance)})`).join("\n"));
+            const selectedAcc = userAccounts[Number(accIndex) - 1];
+
+            if (selectedAcc) {
+              await payDebtPartialWithTransaction(currentUser.uid, debt, payAmount, selectedAcc.id, selectedAcc.name);
+              userAccounts = await getAccounts(currentUser.uid);
+              renderAccountOptions();
+              await loadDebts();
+            }
+          });
+        });
+
+        document.querySelectorAll(".btn-delete-sm").forEach(btn => {
+          btn.addEventListener("click", async (e) => {
+            if (confirm("Hapus catatan ini?")) {
+              await deleteDebt(currentUser.uid, e.target.getAttribute("data-id"));
+              await loadDebts();
+            }
+          });
+        });
+
+      } catch (err) {
+        container.innerHTML = `<p style="color: red;">Gagal memuat catatan.</p>`;
+      }
+    }
+  </script>
+</body>
+</html>

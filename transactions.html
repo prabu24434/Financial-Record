@@ -1,0 +1,482 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Transaksi - Financial Record</title>
+  <link rel="stylesheet" href="./css/dashboard.css">
+  <style>
+    .filter-box {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      margin-bottom: 12px;
+    }
+    .pagination-bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-top: 16px;
+      padding-top: 12px;
+      border-top: 1px solid #eee;
+    }
+    .btn-page {
+      padding: 6px 12px;
+      background: #0066cc;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+    .btn-page:disabled {
+      background: #ccc;
+    }
+    .btn-action-group {
+      display: flex;
+      gap: 6px;
+      margin-top: 6px;
+    }
+    .btn-edit {
+      background: #e67e22;
+      color: white;
+      border: none;
+      padding: 4px 8px;
+      border-radius: 4px;
+      font-size: 11px;
+      cursor: pointer;
+    }
+    .btn-delete {
+      background: #ff4d4d;
+      color: white;
+      border: none;
+      padding: 4px 8px;
+      border-radius: 4px;
+      font-size: 11px;
+      cursor: pointer;
+    }
+    .btn-cancel-edit {
+      background: #7f8c8d;
+      margin-top: 6px;
+      display: none;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="navbar">
+    <h1>Kelola Transaksi</h1>
+    <button id="btn-logout" class="btn-logout">Logout</button>
+  </div>
+
+  <div class="container">
+    <div class="card">
+      <h3 id="form-title">Catat Transaksi Baru</h3>
+      <form id="tx-form">
+        <input type="hidden" id="edit-tx-id" value="">
+
+        <div class="form-group">
+          <label for="tx-type">Jenis Transaksi</label>
+          <select id="tx-type" required>
+            <option value="expense">Pengeluaran</option>
+            <option value="income">Pemasukan</option>
+            <option value="transfer">Transfer antar Rekening</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label for="tx-amount">Nominal (Rp)</label>
+          <input type="number" id="tx-amount" placeholder="0" required>
+        </div>
+
+        <div id="section-standard">
+          <div class="form-group">
+            <label for="tx-account">Rekening</label>
+            <select id="tx-account"></select>
+          </div>
+
+          <div class="form-group">
+            <label for="tx-category">Kategori</label>
+            <select id="tx-category"></select>
+          </div>
+        </div>
+
+        <div id="section-transfer" style="display: none;">
+          <div class="form-group">
+            <label for="tx-source">Rekening Sumber (Dari)</label>
+            <select id="tx-source"></select>
+          </div>
+
+          <div class="form-group">
+            <label for="tx-dest">Rekening Tujuan (Ke)</label>
+            <select id="tx-dest"></select>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label for="tx-date">Tanggal</label>
+          <input type="date" id="tx-date" required>
+        </div>
+
+        <div class="form-group">
+          <label for="tx-notes">Catatan / Keterangan</label>
+          <input type="text" id="tx-notes" placeholder="Misal: Beli makan siang">
+        </div>
+
+        <button type="submit" id="btn-save" class="btn-submit">Simpan Transaksi</button>
+        <button type="button" id="btn-cancel" class="btn-submit btn-cancel-edit">Batal Edit</button>
+      </form>
+    </div>
+
+    <div class="card">
+      <h3>Filter & Cari Transaksi</h3>
+      <div class="form-group">
+        <input type="text" id="search-input" placeholder="Cari catatan, kategori, rekening...">
+      </div>
+
+      <div class="filter-box">
+        <div class="form-group">
+          <label>Jenis</label>
+          <select id="filter-type">
+            <option value="all">Semua Jenis</option>
+            <option value="expense">Pengeluaran</option>
+            <option value="income">Pemasukan</option>
+            <option value="transfer">Transfer</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label>Urutkan</label>
+          <select id="filter-sort">
+            <option value="date-desc">Terbaru (Presisi Waktu)</option>
+            <option value="date-asc">Terlama (Presisi Waktu)</option>
+            <option value="amount-desc">Nominal Terbesar</option>
+            <option value="amount-asc">Nominal Terkecil</option>
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>Daftar Transaksi</h3>
+      <div id="tx-list">
+        <p style="text-align: center; color: #888;">Memuat data...</p>
+      </div>
+
+      <div class="pagination-bar">
+        <button id="btn-prev" class="btn-page" disabled>Sebelumnya</button>
+        <span id="page-info" style="font-size: 12px; color: #666;">Halaman 1</span>
+        <button id="btn-next" class="btn-page" disabled>Berikutnya</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="bottom-nav">
+    <a href="./dashboard.html" class="nav-item">Dashboard</a>
+    <a href="./transactions.html" class="nav-item active">Transaksi</a>
+    <a href="./accounts.html" class="nav-item">Rekening</a>
+    <a href="./budgets.html" class="nav-item">Budget</a>
+    <a href="./goals.html" class="nav-item">Goals</a>
+    <a href="./calendar.html" class="nav-item">Kalender</a>
+    <a href="./reports.html" class="nav-item">Laporan</a>
+    <a href="./debts.html" class="nav-item">Utang</a>
+    <a href="./subscriptions.html" class="nav-item">Subskripsi</a>
+    <a href="./settings.html" class="nav-item">Pengaturan</a>
+  </div>
+
+  <script type="module">
+    import { initTheme } from "./js/theme.js";
+    import { requireAuth } from "./js/session.js";
+    import { logoutUser } from "./js/auth.js";
+    import { 
+      getAccounts, 
+      getCategories, 
+      getTransactions, 
+      addTransaction,
+      updateTransaction,
+      deleteTransaction
+    } from "./js/storage.js";
+    import { getFilteredTransactions } from "./js/filters.js";
+    import { formatRupiah, formatDateIndo } from "./js/utils.js";
+    initTheme();
+    let currentUser = null;
+    let allTransactions = [];
+    let filteredTransactions = [];
+    let cachedAccounts = [];
+    let cachedCategories = { income: [], expense: [] };
+
+    const ITEMS_PER_PAGE = 20;
+    let currentPage = 1;
+
+    document.getElementById("tx-date").value = new Date().toISOString().split("T")[0];
+
+    requireAuth(async (user) => {
+      currentUser = user;
+      await initData();
+    });
+
+    document.getElementById("btn-logout").addEventListener("click", () => logoutUser());
+
+    const typeSelect = document.getElementById("tx-type");
+    const sectionStandard = document.getElementById("section-standard");
+    const sectionTransfer = document.getElementById("section-transfer");
+    const btnCancel = document.getElementById("btn-cancel");
+    const editTxId = document.getElementById("edit-tx-id");
+    const formTitle = document.getElementById("form-title");
+    const btnSave = document.getElementById("btn-save");
+
+    typeSelect.addEventListener("change", () => {
+      const type = typeSelect.value;
+      if (type === "transfer") {
+        sectionStandard.style.display = "none";
+        sectionTransfer.style.display = "block";
+      } else {
+        sectionStandard.style.display = "block";
+        sectionTransfer.style.display = "none";
+        renderCategoryOptions(type);
+      }
+    });
+
+    async function initData() {
+      cachedAccounts = await getAccounts(currentUser.uid);
+      cachedCategories = await getCategories(currentUser.uid);
+
+      renderAccountOptions();
+      renderCategoryOptions("expense");
+      
+      allTransactions = await getTransactions(currentUser.uid);
+      applyFiltersAndRender();
+    }
+
+    function renderAccountOptions() {
+      if (cachedAccounts.length === 0) {
+        const noAccOption = `<option value="">-- Belum Ada Rekening --</option>`;
+        document.getElementById("tx-account").innerHTML = noAccOption;
+        document.getElementById("tx-source").innerHTML = noAccOption;
+        document.getElementById("tx-dest").innerHTML = noAccOption;
+        return;
+      }
+
+      const optionsHtml = cachedAccounts.map(a => `<option value="${a.id}">${a.name} (${formatRupiah(a.balance)})</option>`).join("");
+      document.getElementById("tx-account").innerHTML = optionsHtml;
+      document.getElementById("tx-source").innerHTML = optionsHtml;
+      document.getElementById("tx-dest").innerHTML = optionsHtml;
+    }
+
+    function renderCategoryOptions(type) {
+      const categories = type === "income" ? cachedCategories.income : cachedCategories.expense;
+      document.getElementById("tx-category").innerHTML = categories.map(c => `<option value="${c}">${c}</option>`).join("");
+    }
+
+    document.getElementById("tx-form").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      if (cachedAccounts.length === 0) {
+        alert("Buat rekening terlebih dahulu!");
+        return;
+      }
+
+      btnSave.disabled = true;
+
+      const type = typeSelect.value;
+      const amount = document.getElementById("tx-amount").value;
+      const date = document.getElementById("tx-date").value;
+      const notes = document.getElementById("tx-notes").value.trim();
+      const id = editTxId.value;
+
+      const txData = { type, amount, date, notes };
+
+      if (type === "transfer") {
+        const srcId = document.getElementById("tx-source").value;
+        const destId = document.getElementById("tx-dest").value;
+
+        if (srcId === destId) {
+          alert("Rekening sumber dan tujuan tidak boleh sama!");
+          btnSave.disabled = false;
+          return;
+        }
+
+        const srcAcc = cachedAccounts.find(a => a.id === srcId);
+        const destAcc = cachedAccounts.find(a => a.id === destId);
+
+        txData.sourceAccountId = srcId;
+        txData.sourceAccountName = srcAcc ? srcAcc.name : "";
+        txData.destinationAccountId = destId;
+        txData.destinationAccountName = destAcc ? destAcc.name : "";
+      } else {
+        const accId = document.getElementById("tx-account").value;
+        const acc = cachedAccounts.find(a => a.id === accId);
+
+        txData.accountId = accId;
+        txData.accountName = acc ? acc.name : "";
+        txData.categoryName = document.getElementById("tx-category").value;
+      }
+
+      try {
+        if (id) {
+          const oldTx = allTransactions.find(t => t.id === id);
+          await updateTransaction(currentUser.uid, oldTx, txData);
+        } else {
+          await addTransaction(currentUser.uid, txData);
+        }
+        resetForm();
+        await initData();
+      } catch (err) {
+        alert("Gagal menyimpan transaksi: " + err.message);
+      } finally {
+        btnSave.disabled = false;
+      }
+    });
+
+    btnCancel.addEventListener("click", () => resetForm());
+
+    function resetForm() {
+      document.getElementById("tx-form").reset();
+      editTxId.value = "";
+      formTitle.textContent = "Catat Transaksi Baru";
+      btnSave.textContent = "Simpan Transaksi";
+      btnCancel.style.display = "none";
+      typeSelect.value = "expense";
+      sectionStandard.style.display = "block";
+      sectionTransfer.style.display = "none";
+      renderCategoryOptions("expense");
+    }
+
+    let searchTimeout = null;
+    document.getElementById("search-input").addEventListener("input", () => {
+      clearTimeout(searchTimeout);
+      searchTimeout = setTimeout(() => applyFiltersAndRender(), 300);
+    });
+
+    document.getElementById("filter-type").addEventListener("change", () => applyFiltersAndRender());
+    document.getElementById("filter-sort").addEventListener("change", () => applyFiltersAndRender());
+
+    function applyFiltersAndRender() {
+      const filters = {
+        search: document.getElementById("search-input").value,
+        type: document.getElementById("filter-type").value,
+        sortBy: document.getElementById("filter-sort").value
+      };
+
+      filteredTransactions = getFilteredTransactions(allTransactions, filters);
+      currentPage = 1;
+      renderPaginatedTransactions();
+    }
+
+    function renderPaginatedTransactions() {
+      const container = document.getElementById("tx-list");
+      const totalItems = filteredTransactions.length;
+      const totalPages = Math.ceil(totalItems / ITEMS_PER_PAGE) || 1;
+
+      if (totalItems === 0) {
+        container.innerHTML = `<p style="text-align: center; color: #888;">Tidak ada transaksi ditemukan.</p>`;
+        document.getElementById("page-info").textContent = "Halaman 1 dari 1";
+        document.getElementById("btn-prev").disabled = true;
+        document.getElementById("btn-next").disabled = true;
+        return;
+      }
+
+      const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
+      const paginatedItems = filteredTransactions.slice(startIndex, startIndex + ITEMS_PER_PAGE);
+
+      container.innerHTML = paginatedItems.map(tx => {
+        let badgeClass = "amount-expense";
+        let prefix = "- ";
+        let detailText = `${tx.categoryName || ''} • ${tx.accountName || ''}`;
+
+        if (tx.type === "income") {
+          badgeClass = "amount-income";
+          prefix = "+ ";
+        } else if (tx.type === "transfer") {
+          badgeClass = "amount-transfer";
+          prefix = "";
+          detailText = `Transfer: ${tx.sourceAccountName} → ${tx.destinationAccountName}`;
+        }
+
+        const timeText = tx.time ? ` [${tx.time}]` : '';
+
+        return `
+          <div class="list-item">
+            <div class="item-info">
+              <div class="title">${tx.notes || (tx.type === 'transfer' ? 'Transfer' : tx.categoryName)}</div>
+              <div class="subtitle">${formatDateIndo(tx.date)}${timeText} | ${detailText}</div>
+              <div class="btn-action-group">
+                <button class="btn-edit" data-id="${tx.id}">Edit</button>
+                <button class="btn-delete" data-id="${tx.id}">Hapus</button>
+              </div>
+            </div>
+            <div class="item-amount ${badgeClass}">
+              ${prefix}${formatRupiah(tx.amount)}
+            </div>
+          </div>
+        `;
+      }).join("");
+
+      document.querySelectorAll(".btn-edit").forEach(btn => {
+        btn.addEventListener("click", (e) => {
+          const tx = allTransactions.find(t => t.id === e.target.getAttribute("data-id"));
+          if (tx) {
+            editTxId.value = tx.id;
+            typeSelect.value = tx.type;
+
+            if (tx.type === "transfer") {
+              sectionStandard.style.display = "none";
+              sectionTransfer.style.display = "block";
+              document.getElementById("tx-source").value = tx.sourceAccountId;
+              document.getElementById("tx-dest").value = tx.destinationAccountId;
+            } else {
+              sectionStandard.style.display = "block";
+              sectionTransfer.style.display = "none";
+              renderCategoryOptions(tx.type);
+              document.getElementById("tx-account").value = tx.accountId;
+              document.getElementById("tx-category").value = tx.categoryName;
+            }
+
+            document.getElementById("tx-amount").value = tx.amount;
+            document.getElementById("tx-date").value = tx.date;
+            document.getElementById("tx-notes").value = tx.notes || "";
+
+            formTitle.textContent = "Edit Transaksi";
+            btnSave.textContent = "Perbarui Transaksi";
+            btnCancel.style.display = "block";
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+          }
+        });
+      });
+
+      document.querySelectorAll(".btn-delete").forEach(btn => {
+        btn.addEventListener("click", async (e) => {
+          const txId = e.target.getAttribute("data-id");
+          const targetTx = allTransactions.find(t => t.id === txId);
+
+          if (targetTx && confirm("Apakah kamu yakin ingin menghapus transaksi ini? Saldo rekening akan disesuaikan kembali.")) {
+            try {
+              await deleteTransaction(currentUser.uid, targetTx);
+              await initData();
+            } catch (err) {
+              alert("Gagal menghapus transaksi: " + err.message);
+            }
+          }
+        });
+      });
+
+      document.getElementById("page-info").textContent = `Halaman ${currentPage} dari ${totalPages}`;
+      document.getElementById("btn-prev").disabled = currentPage === 1;
+      document.getElementById("btn-next").disabled = currentPage === totalPages;
+    }
+
+    document.getElementById("btn-prev").addEventListener("click", () => {
+      if (currentPage > 1) {
+        currentPage--;
+        renderPaginatedTransactions();
+      }
+    });
+
+    document.getElementById("btn-next").addEventListener("click", () => {
+      const totalPages = Math.ceil(filteredTransactions.length / ITEMS_PER_PAGE);
+      if (currentPage < totalPages) {
+        currentPage++;
+        renderPaginatedTransactions();
+      }
+    });
+  </script>
+</body>
+</html>

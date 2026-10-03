@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Subskripsi - Financial Record</title>
+  <link rel="stylesheet" href="./css/dashboard.css">
+  <style>
+    .sub-summary {
+      background: #0066cc;
+      color: white;
+      padding: 12px;
+      border-radius: 8px;
+      margin-bottom: 12px;
+      text-align: center;
+    }
+    .btn-pay-sm {
+      background: #27ae60;
+      color: white;
+      border: none;
+      padding: 4px 8px;
+      border-radius: 4px;
+      font-size: 11px;
+      cursor: pointer;
+    }
+    .btn-delete-sm {
+      background: #e74c3c;
+      color: white;
+      border: none;
+      padding: 4px 8px;
+      border-radius: 4px;
+      font-size: 11px;
+      cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="navbar">
+    <h1>Subscription Tracker</h1>
+    <button id="btn-logout" class="btn-logout">Logout</button>
+  </div>
+
+  <div class="container">
+    <div class="card">
+      <h3>Tambah Langganan / Subskripsi</h3>
+      <form id="sub-form">
+        <div class="form-group">
+          <label for="sub-name">Nama Layanan</label>
+          <input type="text" id="sub-name" placeholder="Misal: Netflix, Spotify, Indihome" required>
+        </div>
+
+        <div class="form-group">
+          <label for="sub-amount">Nominal Biaya (Rp)</label>
+          <input type="number" id="sub-amount" placeholder="0" required>
+        </div>
+
+        <div class="form-group">
+          <label for="sub-cycle">Periode Pembayaran</label>
+          <select id="sub-cycle" required>
+            <option value="bulanan">Bulanan</option>
+            <option value="tahunan">Tahunan</option>
+          </select>
+        </div>
+
+        <button type="submit" id="btn-save" class="btn-submit">Simpan Subskripsi</button>
+      </form>
+    </div>
+
+    <div class="card">
+      <div class="sub-summary">
+        <div style="font-size: 12px;">Estimasi Total Biaya Subskripsi Per Bulan</div>
+        <div id="monthly-sub-total" style="font-size: 20px; font-weight: bold;">Rp0</div>
+      </div>
+
+      <h3>Daftar Langganan Aktif</h3>
+      <div id="subs-list">
+        <p style="text-align: center; color: #888;">Memuat data...</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="bottom-nav">
+    <a href="./dashboard.html" class="nav-item">Dashboard</a>
+    <a href="./transactions.html" class="nav-item">Transaksi</a>
+    <a href="./accounts.html" class="nav-item">Rekening</a>
+    <a href="./budgets.html" class="nav-item">Budget</a>
+    <a href="./goals.html" class="nav-item">Goals</a>
+    <a href="./calendar.html" class="nav-item">Kalender</a>
+    <a href="./reports.html" class="nav-item">Laporan</a>
+    <a href="./debts.html" class="nav-item">Utang</a>
+    <a href="./subscriptions.html" class="nav-item active">Subskripsi</a>
+    <a href="./settings.html" class="nav-item">Pengaturan</a>
+  </div>
+
+  <script type="module">
+    import { initTheme } from "./js/theme.js";
+    import { requireAuth } from "./js/session.js";
+    import { logoutUser } from "./js/auth.js";
+    import { getSubscriptions, addSubscription, paySubscriptionWithTransaction, deleteSubscription, getAccounts } from "./js/storage.js";
+    import { formatRupiah } from "./js/utils.js";
+    
+    initTheme();
+    let currentUser = null;
+    let userAccounts = [];
+    let subsList = [];
+
+    requireAuth(async (user) => {
+      currentUser = user;
+      userAccounts = await getAccounts(currentUser.uid);
+      await loadSubscriptions();
+    });
+
+    document.getElementById("btn-logout").addEventListener("click", () => logoutUser());
+
+    document.getElementById("sub-form").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const btnSave = document.getElementById("btn-save");
+      btnSave.disabled = true;
+
+      const name = document.getElementById("sub-name").value.trim();
+      const amount = document.getElementById("sub-amount").value;
+      const billingCycle = document.getElementById("sub-cycle").value;
+
+      try {
+        await addSubscription(currentUser.uid, { name, amount, billingCycle });
+        document.getElementById("sub-form").reset();
+        await loadSubscriptions();
+      } catch (err) {
+        alert("Gagal menyimpan subskripsi: " + err.message);
+      } finally {
+        btnSave.disabled = false;
+      }
+    });
+
+    async function loadSubscriptions() {
+      const container = document.getElementById("subs-list");
+      try {
+        subsList = await getSubscriptions(currentUser.uid);
+        if (subsList.length === 0) {
+          container.innerHTML = `<p style="text-align: center; color: #888;">Belum ada langganan aktif.</p>`;
+          document.getElementById("monthly-sub-total").textContent = "Rp0";
+          return;
+        }
+
+        let monthlyTotal = 0;
+        subsList.forEach(s => {
+          if (s.billingCycle === "bulanan") monthlyTotal += Number(s.amount);
+          if (s.billingCycle === "tahunan") monthlyTotal += Number(s.amount) / 12;
+        });
+
+        document.getElementById("monthly-sub-total").textContent = formatRupiah(Math.round(monthlyTotal));
+
+        container.innerHTML = subsList.map(s => `
+          <div class="list-item">
+            <div class="item-info">
+              <div class="title">${s.name}</div>
+              <div class="subtitle">Pembayaran: ${s.billingCycle}</div>
+              <div style="margin-top: 6px; display: flex; gap: 6px;">
+                <button class="btn-pay-sm" data-id="${s.id}">Bayar Tagihan Ini</button>
+                <button class="btn-delete-sm" data-id="${s.id}">Hapus</button>
+              </div>
+            </div>
+            <div class="item-amount amount-expense">
+              ${formatRupiah(s.amount)} / ${s.billingCycle === 'bulanan' ? 'bln' : 'thn'}
+            </div>
+          </div>
+        `).join("");
+
+        // Bayar Tagihan Subskripsi
+        document.querySelectorAll(".btn-pay-sm").forEach(btn => {
+          btn.addEventListener("click", async (e) => {
+            if (userAccounts.length === 0) return alert("Buat rekening terlebih dahulu!");
+            const sub = subsList.find(s => s.id === e.target.getAttribute("data-id"));
+            const accIndex = prompt("Pilih Nomor Rekening Pembayaran:\n" + userAccounts.map((a, i) => `${i+1}. ${a.name} (${formatRupiah(a.balance)})`).join("\n"));
+            const selectedAcc = userAccounts[Number(accIndex) - 1];
+
+            if (selectedAcc && sub) {
+              await paySubscriptionWithTransaction(currentUser.uid, sub, selectedAcc.id, selectedAcc.name);
+              alert(`Berhasil membayar tagihan ${sub.name}! Transaksi pengeluaran telah dicatat.`);
+              userAccounts = await getAccounts(currentUser.uid);
+            }
+          });
+        });
+
+        document.querySelectorAll(".btn-delete-sm").forEach(btn => {
+          btn.addEventListener("click", async (e) => {
+            if (confirm("Hapus langganan ini?")) {
+              await deleteSubscription(currentUser.uid, e.target.getAttribute("data-id"));
+              await loadSubscriptions();
+            }
+          });
+        });
+
+      } catch (err) {
+        container.innerHTML = `<p style="color: red;">Gagal memuat subskripsi.</p>`;
+      }
+    }
+  </script>
+</body>
+</html>

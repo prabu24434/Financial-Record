@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dashboard - Financial Record</title>
+  <link rel="stylesheet" href="./css/dashboard.css">
+  <style>
+    .summary-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+    .summary-card {
+      background: white;
+      padding: 16px;
+      border-radius: 10px;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.05);
+    }
+    .summary-card.full-width {
+      grid-column: span 2;
+      background: #0066cc;
+      color: white;
+    }
+    .summary-card.full-width h4, .summary-card.full-width p {
+      color: white;
+    }
+    .summary-card h4 {
+      font-size: 12px;
+      color: #666;
+      margin-bottom: 6px;
+      text-transform: uppercase;
+    }
+    .summary-card p {
+      font-size: 18px;
+      font-weight: bold;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="navbar">
+    <h1>Financial Record</h1>
+    <button id="btn-logout" class="btn-logout">Logout</button>
+  </div>
+
+  <div class="container">
+    <div class="summary-grid">
+      <div class="summary-card full-width">
+        <h4>Total Saldo Seluruh Rekening</h4>
+        <p id="total-balance">Rp0</p>
+      </div>
+
+      <div class="summary-card">
+        <h4>Pemasukan</h4>
+        <p id="total-income" class="amount-income">Rp0</p>
+      </div>
+
+      <div class="summary-card">
+        <h4>Pengeluaran</h4>
+        <p id="total-expense" class="amount-expense">Rp0</p>
+      </div>
+
+      <div class="summary-card full-width" style="background: #ffffff; color: #333; border: 1px solid #ddd;">
+        <h4 style="color: #666;">Cash Flow (Net)</h4>
+        <p id="cash-flow" style="color: #333;">Rp0</p>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>5 Transaksi Terakhir</h3>
+      <div id="recent-tx-list">
+        <p style="text-align: center; color: #888;">Memuat data...</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="bottom-nav">
+    <a href="./dashboard.html" class="nav-item active">Dashboard</a>
+    <a href="./transactions.html" class="nav-item">Transaksi</a>
+    <a href="./accounts.html" class="nav-item">Rekening</a>
+    <a href="./budgets.html" class="nav-item">Budget</a>
+    <a href="./goals.html" class="nav-item">Goals</a>
+    <a href="./calendar.html" class="nav-item">Kalender</a>
+    <a href="./reports.html" class="nav-item">Laporan</a>
+    <a href="./debts.html" class="nav-item">Utang</a>
+    <a href="./subscriptions.html" class="nav-item">Subskripsi</a>
+    <a href="./settings.html" class="nav-item">Pengaturan</a>
+
+  </div>
+
+  <script type="module">
+    import { initTheme } from "./js/theme.js";
+    import { requireAuth } from "./js/session.js";
+    import { logoutUser } from "./js/auth.js";
+    import { getAccounts, getTransactions, checkAndProcessRecurring } from "./js/storage.js";
+    import { formatRupiah, formatDateIndo } from "./js/utils.js";
+    initTheme();
+    let currentUser = null;
+
+    requireAuth(async (user) => {
+      currentUser = user;
+      await checkAndProcessRecurring(currentUser.uid);
+      await loadDashboardData();
+    });
+
+    document.getElementById("btn-logout").addEventListener("click", () => logoutUser());
+
+    async function loadDashboardData() {
+      try {
+        const [accounts, transactions] = await Promise.all([
+          getAccounts(currentUser.uid),
+          getTransactions(currentUser.uid)
+        ]);
+
+        const totalBalance = accounts.reduce((sum, acc) => sum + (Number(acc.balance) || 0), 0);
+        document.getElementById("total-balance").textContent = formatRupiah(totalBalance);
+
+        let totalIncome = 0;
+        let totalExpense = 0;
+
+        transactions.forEach(tx => {
+          if (tx.type === "income") totalIncome += Number(tx.amount);
+          if (tx.type === "expense") totalExpense += Number(tx.amount);
+        });
+
+        const cashFlow = totalIncome - totalExpense;
+
+        document.getElementById("total-income").textContent = formatRupiah(totalIncome);
+        document.getElementById("total-expense").textContent = formatRupiah(totalExpense);
+        document.getElementById("cash-flow").textContent = formatRupiah(cashFlow);
+
+        const recentContainer = document.getElementById("recent-tx-list");
+        const recentTx = transactions.slice(0, 5);
+
+        if (recentTx.length === 0) {
+          recentContainer.innerHTML = `<p style="text-align: center; color: #888;">Belum ada transaksi.</p>`;
+          return;
+        }
+
+        recentContainer.innerHTML = recentTx.map(tx => {
+          let badgeClass = "amount-expense";
+          let prefix = "- ";
+          let detailText = `${tx.categoryName || ''} • ${tx.accountName || ''}`;
+
+          if (tx.type === "income") {
+            badgeClass = "amount-income";
+            prefix = "+ ";
+          } else if (tx.type === "transfer") {
+            badgeClass = "amount-transfer";
+            prefix = "";
+            detailText = `Transfer: ${tx.sourceAccountName} → ${tx.destinationAccountName}`;
+          }
+
+          return `
+            <div class="list-item">
+              <div class="item-info">
+                <div class="title">${tx.notes || (tx.type === 'transfer' ? 'Transfer' : tx.categoryName)}</div>
+                <div class="subtitle">${formatDateIndo(tx.date)} | ${detailText}</div>
+              </div>
+              <div class="item-amount ${badgeClass}">
+                ${prefix}${formatRupiah(tx.amount)}
+              </div>
+            </div>
+          `;
+        }).join("");
+
+      } catch (err) {
+        console.error("Gagal memuat dashboard:", err);
+      }
+    }
+  </script>
+</body>
+</html>

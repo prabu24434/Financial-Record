@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Rekening - Financial Record</title>
+  <link rel="stylesheet" href="./css/dashboard.css">
+  <style>
+    .btn-action-group {
+      display: flex;
+      gap: 6px;
+      margin-top: 6px;
+    }
+    .btn-edit-sm {
+      background: #e67e22;
+      color: white;
+      border: none;
+      padding: 4px 8px;
+      border-radius: 4px;
+      font-size: 11px;
+      cursor: pointer;
+    }
+    .btn-delete-sm {
+      background: #e74c3c;
+      color: white;
+      border: none;
+      padding: 4px 8px;
+      border-radius: 4px;
+      font-size: 11px;
+      cursor: pointer;
+    }
+    .cancel-btn {
+      background: #7f8c8d;
+      margin-top: 6px;
+      display: none;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="navbar">
+    <h1>Kelola Rekening</h1>
+    <button id="btn-logout" class="btn-logout">Logout</button>
+  </div>
+
+  <div class="container">
+    <div class="card">
+      <h3 id="form-title">Tambah Rekening Baru</h3>
+      <form id="account-form">
+        <input type="hidden" id="edit-acc-id" value="">
+
+        <div class="form-group">
+          <label for="acc-name">Nama Rekening</label>
+          <input type="text" id="acc-name" placeholder="Misal: BCA, DANA, Cash" required>
+        </div>
+
+        <div class="form-group">
+          <label for="acc-type">Jenis Rekening</label>
+          <select id="acc-type" required>
+            <option value="Cash">Cash</option>
+            <option value="Bank">Bank</option>
+            <option value="E-wallet">E-wallet</option>
+            <option value="Tabungan">Tabungan</option>
+            <option value="Investasi">Investasi</option>
+            <option value="Lainnya">Lainnya</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label for="acc-balance">Saldo (Rp)</label>
+          <input type="number" id="acc-balance" placeholder="0" required>
+        </div>
+
+        <button type="submit" id="btn-save" class="btn-submit">Simpan Rekening</button>
+        <button type="button" id="btn-cancel" class="btn-submit cancel-btn">Batal Edit</button>
+      </form>
+    </div>
+
+    <div class="card">
+      <h3>Daftar Rekening</h3>
+      <div id="accounts-list">
+        <p style="text-align: center; color: #888;">Memuat data...</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Bottom Nav Terpadu (Urutan Baku 1-9) -->
+  <div class="bottom-nav">
+    <a href="./dashboard.html" class="nav-item">Dashboard</a>
+    <a href="./transactions.html" class="nav-item">Transaksi</a>
+    <a href="./accounts.html" class="nav-item active">Rekening</a>
+    <a href="./budgets.html" class="nav-item">Budget</a>
+    <a href="./goals.html" class="nav-item">Goals</a>
+    <a href="./calendar.html" class="nav-item">Kalender</a>
+    <a href="./reports.html" class="nav-item">Laporan</a>
+    <a href="./debts.html" class="nav-item">Utang</a>
+    <a href="./subscriptions.html" class="nav-item">Subskripsi</a>
+    <a href="./settings.html" class="nav-item">Pengaturan</a>
+  </div>
+
+  <script type="module">
+    import { initTheme } from "./js/theme.js";
+    import { requireAuth } from "./js/session.js";
+    import { logoutUser } from "./js/auth.js";
+    import { getAccounts, addAccount, updateAccount, deleteAccount } from "./js/storage.js";
+    import { formatRupiah } from "./js/utils.js";
+
+    initTheme();
+    let currentUser = null;
+    let accountsList = [];
+
+    requireAuth(async (user) => {
+      currentUser = user;
+      await loadAccounts();
+    });
+
+    document.getElementById("btn-logout").addEventListener("click", () => logoutUser());
+
+    const form = document.getElementById("account-form");
+    const btnSave = document.getElementById("btn-save");
+    const btnCancel = document.getElementById("btn-cancel");
+    const editAccId = document.getElementById("edit-acc-id");
+    const formTitle = document.getElementById("form-title");
+
+    form.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      btnSave.disabled = true;
+
+      const name = document.getElementById("acc-name").value.trim();
+      const type = document.getElementById("acc-type").value;
+      const balance = document.getElementById("acc-balance").value;
+      const id = editAccId.value;
+
+      try {
+        if (id) {
+          await updateAccount(currentUser.uid, id, { name, type, balance });
+        } else {
+          await addAccount(currentUser.uid, { name, type, balance });
+        }
+        resetForm();
+        await loadAccounts();
+      } catch (err) {
+        alert("Gagal menyimpan rekening: " + err.message);
+      } finally {
+        btnSave.disabled = false;
+      }
+    });
+
+    btnCancel.addEventListener("click", () => resetForm());
+
+    function resetForm() {
+      form.reset();
+      editAccId.value = "";
+      formTitle.textContent = "Tambah Rekening Baru";
+      btnSave.textContent = "Simpan Rekening";
+      btnCancel.style.display = "none";
+    }
+
+    async function loadAccounts() {
+      const container = document.getElementById("accounts-list");
+      try {
+        accountsList = await getAccounts(currentUser.uid);
+        if (accountsList.length === 0) {
+          container.innerHTML = `<p style="text-align: center; color: #888;">Belum ada rekening. Tambahkan di atas.</p>`;
+          return;
+        }
+
+        container.innerHTML = accountsList.map(acc => `
+          <div class="list-item">
+            <div class="item-info">
+              <div class="title">${acc.name}</div>
+              <div class="subtitle">${acc.type}</div>
+              <div class="btn-action-group">
+                <button class="btn-edit-sm" data-id="${acc.id}">Edit</button>
+                <button class="btn-delete-sm" data-id="${acc.id}">Hapus</button>
+              </div>
+            </div>
+            <div class="item-amount">${formatRupiah(acc.balance)}</div>
+          </div>
+        `).join("");
+
+        document.querySelectorAll(".btn-edit-sm").forEach(btn => {
+          btn.addEventListener("click", (e) => {
+            const acc = accountsList.find(a => a.id === e.target.getAttribute("data-id"));
+            if (acc) {
+              editAccId.value = acc.id;
+              document.getElementById("acc-name").value = acc.name;
+              document.getElementById("acc-type").value = acc.type;
+              document.getElementById("acc-balance").value = acc.balance;
+
+              formTitle.textContent = "Edit Rekening";
+              btnSave.textContent = "Perbarui Rekening";
+              btnCancel.style.display = "block";
+              window.scrollTo({ top: 0, behavior: 'smooth' });
+            }
+          });
+        });
+
+        document.querySelectorAll(".btn-delete-sm").forEach(btn => {
+          btn.addEventListener("click", async (e) => {
+            const id = e.target.getAttribute("data-id");
+            if (confirm("Apakah kamu yakin ingin menghapus rekening ini?")) {
+              try {
+                await deleteAccount(currentUser.uid, id);
+                await loadAccounts();
+              } catch (err) {
+                alert("Gagal menghapus rekening: " + err.message);
+              }
+            }
+          });
+        });
+
+      } catch (err) {
+        container.innerHTML = `<p style="color: red;">Gagal memuat data.</p>`;
+      }
+    }
+  </script>
+</body>
+</html>

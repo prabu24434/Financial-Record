@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Pengaturan - Financial Record</title>
+  <link rel="manifest" href="./manifest.json">
+  <link rel="stylesheet" href="./css/dashboard.css">
+  
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js"></script>
+</head>
+<body>
+
+  <div class="navbar">
+    <h1>Pengaturan & Ekspor</h1>
+    <button id="btn-logout" class="btn-logout">Logout</button>
+  </div>
+
+  <div class="container">
+    <div class="card">
+      <h3>Profil Pengguna</h3>
+      <p style="margin-bottom: 6px;"><strong>Nama:</strong> <span id="prof-name">Memuat...</span></p>
+      <p style="margin-bottom: 6px;"><strong>Email:</strong> <span id="prof-email">Memuat...</span></p>
+    </div>
+
+    <!-- Tampilan & Tema -->
+    <div class="card">
+      <h3>Tampilan & Tema</h3>
+      <div style="display: flex; justify-content: space-between; align-items: center;">
+        <span id="theme-status-label">Mode Terang (Aktif)</span>
+        <button id="btn-toggle-theme" class="btn-submit" style="width: auto; padding: 6px 12px; margin: 0;">Aktifkan Mode Gelap</button>
+      </div>
+    </div>
+
+    <!-- Ekspor Laporan -->
+    <div class="card">
+      <h3>Ekspor Dokumen Laporan</h3>
+      <p style="font-size: 13px; color: #666; margin-bottom: 12px;">Pilih filter periode laporan sebelum mengunduh PDF atau CSV.</p>
+
+      <div class="form-group">
+        <label for="export-period-type">Tipe Periode</label>
+        <select id="export-period-type">
+          <option value="all">Semua Riwayat</option>
+          <option value="daily">Harian</option>
+          <option value="monthly" selected>Bulanan</option>
+          <option value="quarterly">Kuartalan (Q1 - Q4)</option>
+          <option value="yearly">Tahunan</option>
+        </select>
+      </div>
+
+      <div id="filter-daily-container" class="form-group" style="display: none;">
+        <label for="export-date">Pilih Tanggal</label>
+        <input type="date" id="export-date">
+      </div>
+
+      <div id="filter-monthly-container" class="form-group">
+        <label for="export-month">Pilih Bulan & Tahun</label>
+        <input type="month" id="export-month">
+      </div>
+
+      <div id="filter-quarterly-container" class="form-group" style="display: none;">
+        <label for="export-quarter">Pilih Kuartal</label>
+        <select id="export-quarter">
+          <option value="Q1">Kuartal 1 (Jan - Mar)</option>
+          <option value="Q2">Kuartal 2 (Apr - Jun)</option>
+          <option value="Q3">Kuartal 3 (Jul - Sep)</option>
+          <option value="Q4">Kuartal 4 (Okt - Des)</option>
+        </select>
+        <label for="export-quarter-year" style="margin-top: 6px;">Pilih Tahun</label>
+        <input type="number" id="export-quarter-year" placeholder="2026">
+      </div>
+
+      <div id="filter-yearly-container" class="form-group" style="display: none;">
+        <label for="export-year">Pilih Tahun</label>
+        <input type="number" id="export-year" placeholder="2026">
+      </div>
+
+      <button id="btn-export-pdf" class="btn-submit" style="background: #27ae60; margin-bottom: 8px;">Download Laporan PDF</button>
+      <button id="btn-export-csv" class="btn-submit" style="background: #2980b9;">Download Laporan CSV</button>
+    </div>
+
+    <!-- Backup & Restore -->
+    <div class="card">
+      <h3>Backup & Restore Data</h3>
+      <p style="font-size: 13px; color: #666; margin-bottom: 12px;">Simpan cadangan data keuangan kamu dalam bentuk file JSON atau pulihkan data dari file backup.</p>
+      <button id="btn-backup-json" class="btn-submit" style="background: #8e44ad; margin-bottom: 12px;">Backup Data (JSON)</button>
+      
+      <div class="form-group" style="margin-top: 12px;">
+        <label for="restore-file">Restore dari File JSON</label>
+        <input type="file" id="restore-file" accept=".json">
+      </div>
+      <button id="btn-restore-json" class="btn-submit" style="background: #e67e22;">Restore Data</button>
+    </div>
+  </div>
+
+  <div class="bottom-nav">
+    <a href="./dashboard.html" class="nav-item">Dashboard</a>
+    <a href="./transactions.html" class="nav-item">Transaksi</a>
+    <a href="./accounts.html" class="nav-item">Rekening</a>
+    <a href="./budgets.html" class="nav-item">Budget</a>
+    <a href="./goals.html" class="nav-item">Goals</a>
+    <a href="./calendar.html" class="nav-item">Kalender</a>
+    <a href="./reports.html" class="nav-item">Laporan</a>
+    <a href="./debts.html" class="nav-item">Utang</a>
+    <a href="./subscriptions.html" class="nav-item">Subskripsi</a>
+    <a href="./settings.html" class="nav-item active">Pengaturan</a>
+  </div>
+
+  <script type="module">
+    import { requireAuth } from "./js/session.js";
+    import { logoutUser } from "./js/auth.js";
+    import { getUserProfile, getTransactions } from "./js/storage.js";
+    import { exportToPDF } from "./js/export-pdf.js";
+    import { exportToCSV } from "./js/export-csv.js";
+    import { exportBackupJSON, restoreBackupJSON } from "./js/backup.js";
+    import { initTheme, toggleTheme } from "./js/theme.js";
+    import "./js/pwa.js";
+
+    let currentUser = null;
+    let userProfileData = null;
+    let userTransactions = [];
+
+    // Inisialisasi Tema & Teks Tombol
+    initTheme();
+
+    const now = new Date();
+    document.getElementById("export-date").value = now.toISOString().split("T")[0];
+    document.getElementById("export-month").value = now.toISOString().slice(0, 7);
+    document.getElementById("export-quarter-year").value = now.getFullYear();
+    document.getElementById("export-year").value = now.getFullYear();
+
+    requireAuth(async (user) => {
+      currentUser = user;
+      userProfileData = await getUserProfile(currentUser.uid);
+      userTransactions = await getTransactions(currentUser.uid);
+
+      document.getElementById("prof-name").textContent = userProfileData?.name || "User";
+      document.getElementById("prof-email").textContent = currentUser.email;
+    });
+
+    document.getElementById("btn-logout").addEventListener("click", () => logoutUser());
+
+    // Toggle Dark Mode saat tombol diklik
+    document.getElementById("btn-toggle-theme").addEventListener("click", () => {
+      toggleTheme();
+    });
+
+    const periodSelect = document.getElementById("export-period-type");
+    periodSelect.addEventListener("change", () => {
+      const type = periodSelect.value;
+      document.getElementById("filter-daily-container").style.display = type === "daily" ? "block" : "none";
+      document.getElementById("filter-monthly-container").style.display = type === "monthly" ? "block" : "none";
+      document.getElementById("filter-quarterly-container").style.display = type === "quarterly" ? "block" : "none";
+      document.getElementById("filter-yearly-container").style.display = type === "yearly" ? "block" : "none";
+    });
+
+    function getSelectedDateRange() {
+      const type = periodSelect.value;
+      let startDate = "";
+      let endDate = "";
+      let label = "Semua Riwayat";
+
+      if (type === "daily") {
+        const val = document.getElementById("export-date").value;
+        startDate = val;
+        endDate = val;
+        label = `Harian (${val})`;
+      } else if (type === "monthly") {
+        const val = document.getElementById("export-month").value;
+        const [y, m] = val.split("-");
+        const lastDay = new Date(y, m, 0).getDate();
+        startDate = `${val}-01`;
+        endDate = `${val}-${String(lastDay).padStart(2, '0')}`;
+        label = `Bulanan (${val})`;
+      } else if (type === "quarterly") {
+        const q = document.getElementById("export-quarter").value;
+        const y = document.getElementById("export-quarter-year").value || "2026";
+        if (q === "Q1") { startDate = `${y}-01-01`; endDate = `${y}-03-31`; }
+        if (q === "Q2") { startDate = `${y}-04-01`; endDate = `${y}-06-30`; }
+        if (q === "Q3") { startDate = `${y}-07-01`; endDate = `${y}-09-30`; }
+        if (q === "Q4") { startDate = `${y}-10-01`; endDate = `${y}-12-31`; }
+        label = `Kuartal ${q} ${y}`;
+      } else if (type === "yearly") {
+        const y = document.getElementById("export-year").value || "2026";
+        startDate = `${y}-01-01`;
+        endDate = `${y}-12-31`;
+        label = `Tahunan ${y}`;
+      }
+
+      return { dateRange: { startDate, endDate }, label };
+    }
+
+    document.getElementById("btn-export-pdf").addEventListener("click", async () => {
+      const { dateRange, label } = getSelectedDateRange();
+      await exportToPDF(userTransactions, dateRange, label, userProfileData, currentUser.uid);
+    });
+
+    document.getElementById("btn-export-csv").addEventListener("click", () => {
+      const { dateRange, label } = getSelectedDateRange();
+      exportToCSV(userTransactions, dateRange, label);
+    });
+
+    document.getElementById("btn-backup-json").addEventListener("click", async () => {
+      await exportBackupJSON(currentUser.uid);
+    });
+
+    document.getElementById("btn-restore-json").addEventListener("click", async () => {
+      const fileInput = document.getElementById("restore-file");
+      if (!fileInput.files || fileInput.files.length === 0) {
+        alert("Pilih file cadangan JSON terlebih dahulu!");
+        return;
+      }
+
+      if (confirm("Restore data akan menambahkan seluruh data keuangan dari file backup ke akun kamu. Lanjutkan?")) {
+        try {
+          await restoreBackupJSON(currentUser.uid, fileInput.files[0]);
+          alert("Restore data berhasil!");
+          window.location.reload();
+        } catch (err) {
+          alert("Gagal restore data: " + err.message);
+        }
+      }
+    });
+  </script>
+</body>
+</html>

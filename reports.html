@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Laporan - Financial Record</title>
+  <link rel="stylesheet" href="./css/dashboard.css">
+  <style>
+    .report-metric {
+      display: flex;
+      justify-content: space-between;
+      padding: 8px 0;
+      border-bottom: 1px solid #eee;
+      font-size: 14px;
+    }
+    .report-metric:last-child {
+      border-bottom: none;
+    }
+    .report-metric .label {
+      color: #666;
+    }
+    .report-metric .value {
+      font-weight: bold;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="navbar">
+    <h1>Laporan Keuangan</h1>
+    <button id="btn-logout" class="btn-logout">Logout</button>
+  </div>
+
+  <div class="container">
+    <div class="card">
+      <h3>Filter Periode Laporan</h3>
+      <div class="form-group">
+        <label for="report-month">Pilih Bulan & Tahun</label>
+        <input type="month" id="report-month">
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>Ringkasan Bulan Ini</h3>
+      <div class="report-metric">
+        <span class="label">Total Pemasukan</span>
+        <span class="value amount-income" id="rep-income">Rp0</span>
+      </div>
+      <div class="report-metric">
+        <span class="label">Total Pengeluaran</span>
+        <span class="value amount-expense" id="rep-expense">Rp0</span>
+      </div>
+      <div class="report-metric">
+        <span class="label">Cash Flow (Arus Kas)</span>
+        <span class="value" id="rep-cashflow">Rp0</span>
+      </div>
+      <div class="report-metric">
+        <span class="label">Saving Rate (%)</span>
+        <span class="value" id="rep-saving-rate">0%</span>
+      </div>
+      <div class="report-metric">
+        <span class="label">Expense Ratio (%)</span>
+        <span class="value" id="rep-expense-ratio">0%</span>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>Net Worth, Aset & Utang/Piutang</h3>
+      <div class="report-metric">
+        <span class="label">Total Aset (Rekening)</span>
+        <span class="value" id="rep-assets">Rp0</span>
+      </div>
+      <div class="report-metric">
+        <span class="label">Total Sisa Utang</span>
+        <span class="value amount-expense" id="rep-debts">Rp0</span>
+      </div>
+      <div class="report-metric">
+        <span class="label">Total Sisa Piutang</span>
+        <span class="value amount-income" id="rep-receivables">Rp0</span>
+      </div>
+      <div class="report-metric">
+        <span class="label">Net Worth (Aset - Utang)</span>
+        <span class="value" id="rep-networth" style="color: #0066cc;">Rp0</span>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>Pengeluaran per Kategori</h3>
+      <div id="category-report-list">
+        <p style="text-align: center; color: #888;">Memuat data...</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Bottom Nav 10 Menu Konsisten -->
+  <div class="bottom-nav">
+    <a href="./dashboard.html" class="nav-item">Dashboard</a>
+    <a href="./transactions.html" class="nav-item">Transaksi</a>
+    <a href="./accounts.html" class="nav-item">Rekening</a>
+    <a href="./budgets.html" class="nav-item">Budget</a>
+    <a href="./goals.html" class="nav-item">Goals</a>
+    <a href="./calendar.html" class="nav-item">Kalender</a>
+    <a href="./reports.html" class="nav-item active">Laporan</a>
+    <a href="./debts.html" class="nav-item">Utang</a>
+    <a href="./subscriptions.html" class="nav-item">Subskripsi</a>
+    <a href="./settings.html" class="nav-item">Pengaturan</a>
+  </div>
+
+  <script type="module">
+    import { initTheme } from "./js/theme.js";
+    import { requireAuth } from "./js/session.js";
+    import { logoutUser } from "./js/auth.js";
+    import { getAccounts, getTransactions, getDebts } from "./js/storage.js";
+    import { formatRupiah } from "./js/utils.js";
+    
+    initTheme();
+    let currentUser = null;
+
+    document.getElementById("report-month").value = new Date().toISOString().slice(0, 7);
+
+    requireAuth(async (user) => {
+      currentUser = user;
+      await loadReports();
+    });
+
+    document.getElementById("btn-logout").addEventListener("click", () => logoutUser());
+    document.getElementById("report-month").addEventListener("change", () => loadReports());
+
+    async function loadReports() {
+      const selectedMonth = document.getElementById("report-month").value;
+
+      try {
+        const [accounts, transactions, debts] = await Promise.all([
+          getAccounts(currentUser.uid),
+          getTransactions(currentUser.uid),
+          getDebts(currentUser.uid)
+        ]);
+
+        const totalAssets = accounts.reduce((sum, acc) => sum + Number(acc.balance), 0);
+        const totalDebts = debts.filter(d => d.type === "utang" && d.status !== "Lunas").reduce((sum, d) => sum + Number(d.remainingAmount ?? d.amount), 0);
+        const totalReceivables = debts.filter(d => d.type === "piutang" && d.status !== "Lunas").reduce((sum, d) => sum + Number(d.remainingAmount ?? d.amount), 0);
+        const netWorth = totalAssets - totalDebts;
+
+        document.getElementById("rep-assets").textContent = formatRupiah(totalAssets);
+        document.getElementById("rep-debts").textContent = formatRupiah(totalDebts);
+        document.getElementById("rep-receivables").textContent = formatRupiah(totalReceivables);
+        document.getElementById("rep-networth").textContent = formatRupiah(netWorth);
+
+        let totalIncome = 0;
+        let totalExpense = 0;
+        const categoryExpenses = {};
+
+        transactions.forEach(tx => {
+          if (tx.date && tx.date.startsWith(selectedMonth)) {
+            if (tx.type === "income") totalIncome += Number(tx.amount);
+            if (tx.type === "expense") {
+              totalExpense += Number(tx.amount);
+              categoryExpenses[tx.categoryName] = (categoryExpenses[tx.categoryName] || 0) + Number(tx.amount);
+            }
+          }
+        });
+
+        const cashFlow = totalIncome - totalExpense;
+        const savingRate = totalIncome > 0 ? Math.round(((totalIncome - totalExpense) / totalIncome) * 100) : 0;
+        const expenseRatio = totalIncome > 0 ? Math.round((totalExpense / totalIncome) * 100) : 0;
+
+        document.getElementById("rep-income").textContent = formatRupiah(totalIncome);
+        document.getElementById("rep-expense").textContent = formatRupiah(totalExpense);
+        document.getElementById("rep-cashflow").textContent = formatRupiah(cashFlow);
+        document.getElementById("rep-saving-rate").textContent = `${savingRate}%`;
+        document.getElementById("rep-expense-ratio").textContent = `${expenseRatio}%`;
+
+        const catContainer = document.getElementById("category-report-list");
+        const categories = Object.keys(categoryExpenses);
+
+        if (categories.length === 0) {
+          catContainer.innerHTML = `<p style="text-align: center; color: #888;">Tidak ada pengeluaran pada periode ini.</p>`;
+          return;
+        }
+
+        catContainer.innerHTML = categories.map(cat => `
+          <div class="report-metric">
+            <span class="label">${cat}</span>
+            <span class="value amount-expense">${formatRupiah(categoryExpenses[cat])}</span>
+          </div>
+        `).join("");
+
+      } catch (err) {
+        console.error("Gagal load laporan:", err);
+      }
+    }
+  </script>
+</body>
+</html>

@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Budget - Financial Record</title>
+  <link rel="stylesheet" href="./css/dashboard.css">
+  <style>
+    .progress-container {
+      background: #e0e0e0;
+      border-radius: 6px;
+      height: 12px;
+      width: 100%;
+      overflow: hidden;
+      margin: 8px 0;
+    }
+    .progress-bar {
+      height: 100%;
+      background: #0066cc;
+      width: 0%;
+      transition: width 0.3s;
+    }
+    .progress-bar.overbudget {
+      background: #e74c3c;
+    }
+    .budget-info {
+      display: flex;
+      justify-content: space-between;
+      font-size: 12px;
+      color: #666;
+    }
+    .btn-delete-sm {
+      background: #e74c3c;
+      color: white;
+      border: none;
+      padding: 4px 8px;
+      border-radius: 4px;
+      font-size: 11px;
+      cursor: pointer;
+      margin-top: 6px;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="navbar">
+    <h1>Anggaran (Budget)</h1>
+    <button id="btn-logout" class="btn-logout">Logout</button>
+  </div>
+
+  <div class="container">
+    <div class="card">
+      <h3>Atur Budget Bulanan</h3>
+      <form id="budget-form">
+        <div class="form-group">
+          <label for="bg-category">Kategori Pengeluaran</label>
+          <select id="bg-category" required></select>
+        </div>
+
+        <div class="form-group">
+          <label for="bg-amount">Batas Anggaran (Rp)</label>
+          <input type="number" id="bg-amount" placeholder="0" required>
+        </div>
+
+        <button type="submit" id="btn-save" class="btn-submit">Simpan Budget</button>
+      </form>
+    </div>
+
+    <div class="card">
+      <h3>Progress Budget Bulan Ini</h3>
+      <div id="budget-list">
+        <p style="text-align: center; color: #888;">Memuat data...</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="bottom-nav">
+    <a href="./dashboard.html" class="nav-item">Dashboard</a>
+    <a href="./transactions.html" class="nav-item">Transaksi</a>
+    <a href="./accounts.html" class="nav-item">Rekening</a>
+    <a href="./budgets.html" class="nav-item active">Budget</a>
+    <a href="./goals.html" class="nav-item">Goals</a>
+    <a href="./calendar.html" class="nav-item">Kalender</a>
+    <a href="./reports.html" class="nav-item">Laporan</a>
+    <a href="./debts.html" class="nav-item">Utang</a>
+    <a href="./subscriptions.html" class="nav-item">Subskripsi</a>
+    <a href="./settings.html" class="nav-item">Pengaturan</a>
+  </div>
+
+  <script type="module">
+    import { initTheme } from "./js/theme.js";
+    import { requireAuth } from "./js/session.js";
+    import { logoutUser } from "./js/auth.js";
+    import { getCategories, getBudgets, addBudget, deleteBudget, getTransactions } from "./js/storage.js";
+    import { formatRupiah } from "./js/utils.js";
+    
+    initTheme();
+    let currentUser = null;
+
+    requireAuth(async (user) => {
+      currentUser = user;
+      await initData();
+    });
+
+    document.getElementById("btn-logout").addEventListener("click", () => logoutUser());
+
+    async function initData() {
+      const categories = await getCategories(currentUser.uid);
+      const bgCategorySelect = document.getElementById("bg-category");
+      bgCategorySelect.innerHTML = categories.expense.map(c => `<option value="${c}">${c}</option>`).join("");
+
+      await loadBudgets();
+    }
+
+    document.getElementById("budget-form").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const btnSave = document.getElementById("btn-save");
+      btnSave.disabled = true;
+
+      const categoryName = document.getElementById("bg-category").value;
+      const amount = document.getElementById("bg-amount").value;
+
+      try {
+        await addBudget(currentUser.uid, { categoryName, amount });
+        document.getElementById("bg-amount").value = "";
+        await loadBudgets();
+      } catch (err) {
+        alert("Gagal menyimpan budget: " + err.message);
+      } finally {
+        btnSave.disabled = false;
+      }
+    });
+
+    async function loadBudgets() {
+      const container = document.getElementById("budget-list");
+      try {
+        const [budgets, transactions] = await Promise.all([
+          getBudgets(currentUser.uid),
+          getTransactions(currentUser.uid)
+        ]);
+
+        if (budgets.length === 0) {
+          container.innerHTML = `<p style="text-align: center; color: #888;">Belum ada budget yang diatur.</p>`;
+          return;
+        }
+
+        const currentMonth = new Date().toISOString().slice(0, 7);
+        const categoryExpenses = {};
+
+        transactions.forEach(tx => {
+          if (tx.type === "expense" && tx.date && tx.date.startsWith(currentMonth)) {
+            categoryExpenses[tx.categoryName] = (categoryExpenses[tx.categoryName] || 0) + Number(tx.amount);
+          }
+        });
+
+        container.innerHTML = budgets.map(bg => {
+          const used = categoryExpenses[bg.categoryName] || 0;
+          const remaining = bg.amount - used;
+          const percent = Math.min(Math.round((used / bg.amount) * 100), 100);
+          const isOver = used > bg.amount;
+
+          return `
+            <div class="list-item" style="flex-direction: column; align-items: stretch;">
+              <div style="display: flex; justify-content: space-between; font-weight: bold;">
+                <span>${bg.categoryName}</span>
+                <span>${percent}%</span>
+              </div>
+              <div class="progress-container">
+                <div class="progress-bar ${isOver ? 'overbudget' : ''}" style="width: ${percent}%;"></div>
+              </div>
+              <div class="budget-info">
+                <span>Terpakai: ${formatRupiah(used)}</span>
+                <span>Target: ${formatRupiah(bg.amount)}</span>
+              </div>
+              <div class="budget-info" style="margin-top: 4px; font-weight: 500; color: ${isOver ? '#e74c3c' : '#27ae60'};">
+                <span>${isOver ? 'Melebihi Budget!' : 'Sisa: ' + formatRupiah(remaining)}</span>
+                <button class="btn-delete-sm" data-id="${bg.id}">Hapus</button>
+              </div>
+            </div>
+          `;
+        }).join("");
+
+        document.querySelectorAll(".btn-delete-sm").forEach(btn => {
+          btn.addEventListener("click", async (e) => {
+            if (confirm("Hapus budget ini?")) {
+              await deleteBudget(currentUser.uid, e.target.getAttribute("data-id"));
+              await loadBudgets();
+            }
+          });
+        });
+
+      } catch (err) {
+        container.innerHTML = `<p style="color: red;">Gagal memuat budget.</p>`;
+      }
+    }
+  </script>
+</body>
+</html>
